@@ -606,10 +606,10 @@ void publish_map(rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub
     // pubLaserCloudMap->publish(laserCloudMap);
 }
 
-void save_to_pcd()
+void save_to_pcd(const std::string& save_map_file_path)
 {
     pcl::PCDWriter pcd_writer;
-    pcd_writer.writeBinary(map_file_path, *pcl_wait_pub);
+    pcd_writer.writeBinary(save_map_file_path, *pcl_wait_pub);
 }
 
 template<typename T>
@@ -1112,12 +1112,34 @@ private:
         if (map_pub_en) publish_map(pubLaserCloudMap_);
     }
 
+    std::string get_current_timestamp() {
+        auto now = std::chrono::system_clock::now();
+        std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+        std::tm* tm = std::localtime(&now_time);
+
+        std::ostringstream oss;
+        oss << std::put_time(tm, "%Y%m%d_%H%M%S");
+        return oss.str();
+    }
+
+    std::string add_timestamp_to_filename(const std::string& filepath) {
+        std::size_t pos = filepath.rfind('.');
+        std::string timestamp = get_current_timestamp();
+
+        if (pos == std::string::npos) {
+            return filepath + "_" + timestamp;
+        } else {
+            return filepath.substr(0, pos) + "_" + timestamp + filepath.substr(pos);
+        }
+    }
+
     void map_save_callback(std_srvs::srv::Trigger::Request::ConstSharedPtr req, std_srvs::srv::Trigger::Response::SharedPtr res)
     {
-        RCLCPP_INFO(this->get_logger(), "Saving map to %s...", map_file_path.c_str());
+        const std::string map_file_path_timestamed = add_timestamp_to_filename(map_file_path);
+        RCLCPP_INFO(this->get_logger(), "Saving map to %s...", map_file_path_timestamed.c_str());
         if (pcd_save_en)
         {
-            save_to_pcd();
+            save_to_pcd(map_file_path_timestamed);
             res->success = true;
             res->message = "Map saved.";
         }
